@@ -76,7 +76,9 @@ void run(int argc, char** argv)
       for (auto const& filename : filenames) {
         Glib::ustring const& uri = to_uri(filename);
         recent_manager->add_item(uri);
-        fmt::print("added {}\n", uri.raw());
+        if (verbose) {
+          fmt::print("added {}\n", uri.raw());
+        }
       }
       break;
 
@@ -84,7 +86,9 @@ void run(int argc, char** argv)
       for (auto const& filename : filenames) {
         Glib::ustring const& uri = to_uri(filename);
         recent_manager->remove_item(uri);
-        fmt::print("removed {}\n", uri.raw());
+        if (verbose) {
+          fmt::print("removed {}\n", uri.raw());
+        }
       }
       break;
 
@@ -96,7 +100,9 @@ void run(int argc, char** argv)
 
     case Command::PURGE: {
       int const items_removed = recent_manager->purge_items();
-      fmt::print("purged {} items\n", items_removed);
+      if (verbose) {
+        fmt::print("purged {} items\n", items_removed);
+      }
       break;
     }
 
