@@ -7,6 +7,7 @@
 #include <giomm/application.h>
 
 enum class Command {
+  NONE,
   ADD,
   REMOVE,
   LIST,
@@ -14,40 +15,54 @@ enum class Command {
   HELP
 };
 
+Glib::ustring to_uri(std::string const& text)
+{
+  if (text.starts_with("file://")) {
+    return text;
+  } else {
+    return Glib::filename_to_uri(Glib::canonicalize_filename(text));
+  }
+}
+
 void run(int argc, char** argv)
 {
   auto app = Gtk::Application::create("org.github.grumbel.recent",
                                       Gio::APPLICATION_HANDLES_COMMAND_LINE);
 
-  Command command = Command::HELP;
-
-  if (argc >= 2)
-  {
-    if (strcmp("add", argv[1]) == 0) {
-      command = Command::ADD;
-    } else if (strcmp("remove", argv[1]) == 0) {
-      command = Command::REMOVE;
-    } else if (strcmp("purge", argv[1]) == 0) {
-      command = Command::PURGE;
-    } else if (strcmp("list", argv[1]) == 0) {
-      command = Command::LIST;
-    } else if (strcmp("help", argv[1]) == 0) {
-      command = Command::HELP;
-    } else {
-      throw std::runtime_error(fmt::format("unknown command: {}", argv[1]));
-    }
-  }
-
+  Command command = Command::NONE;
+  bool verbose = false;
   std::vector<std::string> filenames;
-  for (int i = 2; i < argc; ++i)
+
+  for (int i = 1; i < argc; ++i)
   {
-    if (command == Command::ADD || command == Command::REMOVE)
-    {
-      filenames.emplace_back(argv[i]);
-    }
-    else
-    {
-      throw std::runtime_error(fmt::format("no file arguments allowed for '{}'", argv[1]));
+    if (argv[i][0] == '-') {
+      // --option arguments
+      if (strcmp("-v", argv[i]) == 0 ||
+          strcmp("--verbose", argv[i]) == 0) {
+        verbose = true;
+      } else if (strcmp("-h", argv[i]) == 0 ||
+                 strcmp("--help", argv[i]) == 0) {
+        command == Command::HELP;
+      } else {
+        throw std::runtime_error(fmt::format("unrecognized option '{}'", argv[i]));
+      }
+    } else {
+      // rest arguments
+      if (command == Command::NONE) {
+        if (strcmp("add", argv[i]) == 0) {
+          command = Command::ADD;
+        } else if (strcmp("remove", argv[i]) == 0) {
+          command = Command::REMOVE;
+        } else if (strcmp("purge", argv[i]) == 0) {
+          command = Command::PURGE;
+        } else if (strcmp("list", argv[i]) == 0) {
+          command = Command::LIST;
+        } else {
+          throw std::runtime_error(fmt::format("unknown command '{}'", argv[i]));
+        }
+      } else {
+        filenames.emplace_back(argv[i]);
+      }
     }
   }
 
@@ -59,26 +74,22 @@ void run(int argc, char** argv)
   {
     case Command::ADD:
       for (auto const& filename : filenames) {
-        auto file = Gio::File::create_for_path(filename);
-        bool const ret = recent_manager->add_item(file->get_uri());
-        fmt::print("added {} {}\n", filename, file->get_uri(), ret);
+        Glib::ustring const& uri = to_uri(filename);
+        recent_manager->add_item(uri);
+        fmt::print("added {}\n", uri.raw());
       }
       break;
 
     case Command::REMOVE:
       for (auto const& filename : filenames) {
-        auto file = Gio::File::create_for_path(filename);
-        if (!recent_manager->remove_item(file->get_uri())) {
-          fmt::print("removal of {} failed\n", filename);
-        } else {
-          fmt::print("removed {}\n", filename);
-        }
+        Glib::ustring const& uri = to_uri(filename);
+        recent_manager->remove_item(uri);
+        fmt::print("removed {}\n", uri.raw());
       }
       break;
 
     case Command::LIST:
-      for (auto const& item : recent_manager->get_items())
-      {
+      for (auto const& item : recent_manager->get_items()) {
         fmt::print("{}\n", item->get_uri().raw());
       }
       break;
@@ -89,6 +100,7 @@ void run(int argc, char** argv)
       break;
     }
 
+    case Command::NONE:
     case Command::HELP:
       fmt::print("Usage: {} COMMAND [FILE]...\n"
                  "\n"
@@ -99,14 +111,16 @@ void run(int argc, char** argv)
                  "  remove     Remove files from Recent Files\n"
                  "  list       Display recent files\n"
                  "  purge      Purge all entries from Recent Files\n"
-                 "  help       Show this help\n"
+                 "\n"
+                 "Options:\n"
+                 "  -h, --help       Show this help\n"
+                 "  -v, --verbose    Be more verbose\n"
                  , argv[0]);
       break;
   }
 
   app->run();
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -115,7 +129,7 @@ int main(int argc, char *argv[])
     run(argc, argv);
     return 0;
   }
-  catch (Gtk::RecentManagerError const& err)
+  catch (Glib::Error const& err)
   {
     fmt::print(stderr, "error: {}\n", err.what().raw());
   }
@@ -125,4 +139,4 @@ int main(int argc, char *argv[])
   }
 }
 
-  /* EOF */
+/* EOF */
