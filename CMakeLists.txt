@@ -12,6 +12,7 @@ include_directories(${GTKMM_INCLUDE_DIRS})
 link_directories(${GTKMM_LIBRARY_DIRS})
 
 add_executable(recent src/recent.cpp)
+target_compile_options(recent PRIVATE ${TINYCMMC_WARNINGS_CXX_FLAGS})
 target_link_libraries(recent PRIVATE
   ${GTKMM_LIBRARIES}
   fmt::fmt)

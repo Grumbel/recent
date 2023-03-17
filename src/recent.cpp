@@ -46,7 +46,7 @@ Options parse_args(int argc, char** argv)
         opts.verbose = true;
       } else if (strcmp("-h", argv[i]) == 0 ||
                  strcmp("--help", argv[i]) == 0) {
-        opts.command == Command::HELP;
+        opts.command = Command::HELP;
       } else {
         throw std::runtime_error(fmt::format("unrecognized option '{}'", argv[i]));
       }
@@ -78,7 +78,7 @@ void run(int argc, char** argv)
   auto app = Gtk::Application::create("org.github.grumbel.recent",
                                       Gio::APPLICATION_HANDLES_COMMAND_LINE);
 
-  Options opts = parse_args(argc, argv);
+  Options const& opts = parse_args(argc, argv);
 
   // Using create() instead of get_default() here, as otherwise it
   // won't flush properly and added items never show up
