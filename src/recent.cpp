@@ -6,6 +6,8 @@
 #include <gtkmm.h>
 #include <giomm/application.h>
 
+namespace {
+
 enum class Command {
   NONE,
   ADD,
@@ -13,6 +15,13 @@ enum class Command {
   LIST,
   PURGE,
   HELP
+};
+
+struct Options
+{
+  Command command = Command::NONE;
+  bool verbose = false;
+  std::vector<std::string> filenames = {};
 };
 
 Glib::ustring to_uri(std::string const& text)
@@ -24,14 +33,9 @@ Glib::ustring to_uri(std::string const& text)
   }
 }
 
-void run(int argc, char** argv)
+Options parse_args(int argc, char** argv)
 {
-  auto app = Gtk::Application::create("org.github.grumbel.recent",
-                                      Gio::APPLICATION_HANDLES_COMMAND_LINE);
-
-  Command command = Command::NONE;
-  bool verbose = false;
-  std::vector<std::string> filenames;
+  Options opts;
 
   for (int i = 1; i < argc; ++i)
   {
@@ -39,54 +43,64 @@ void run(int argc, char** argv)
       // --option arguments
       if (strcmp("-v", argv[i]) == 0 ||
           strcmp("--verbose", argv[i]) == 0) {
-        verbose = true;
+        opts.verbose = true;
       } else if (strcmp("-h", argv[i]) == 0 ||
                  strcmp("--help", argv[i]) == 0) {
-        command == Command::HELP;
+        opts.command == Command::HELP;
       } else {
         throw std::runtime_error(fmt::format("unrecognized option '{}'", argv[i]));
       }
     } else {
       // rest arguments
-      if (command == Command::NONE) {
+      if (opts.command == Command::NONE) {
         if (strcmp("add", argv[i]) == 0) {
-          command = Command::ADD;
+          opts.command = Command::ADD;
         } else if (strcmp("remove", argv[i]) == 0) {
-          command = Command::REMOVE;
+          opts.command = Command::REMOVE;
         } else if (strcmp("purge", argv[i]) == 0) {
-          command = Command::PURGE;
+          opts.command = Command::PURGE;
         } else if (strcmp("list", argv[i]) == 0) {
-          command = Command::LIST;
+          opts.command = Command::LIST;
         } else {
           throw std::runtime_error(fmt::format("unknown command '{}'", argv[i]));
         }
       } else {
-        filenames.emplace_back(argv[i]);
+        opts.filenames.emplace_back(argv[i]);
       }
     }
   }
+
+  return opts;
+}
+
+void run(int argc, char** argv)
+{
+  auto app = Gtk::Application::create("org.github.grumbel.recent",
+                                      Gio::APPLICATION_HANDLES_COMMAND_LINE);
+
+  Options opts = parse_args(argc, argv);
 
   // Using create() instead of get_default() here, as otherwise it
   // won't flush properly and added items never show up
   auto recent_manager = Gtk::RecentManager::create();
 
-  switch (command)
+  switch (opts.command)
   {
     case Command::ADD:
-      for (auto const& filename : filenames) {
+      for (auto const& filename : opts.filenames) {
         Glib::ustring const& uri = to_uri(filename);
         recent_manager->add_item(uri);
-        if (verbose) {
+        if (opts.verbose) {
           fmt::print("added {}\n", uri.raw());
         }
       }
       break;
 
     case Command::REMOVE:
-      for (auto const& filename : filenames) {
+      for (auto const& filename : opts.filenames) {
         Glib::ustring const& uri = to_uri(filename);
         recent_manager->remove_item(uri);
-        if (verbose) {
+        if (opts.verbose) {
           fmt::print("removed {}\n", uri.raw());
         }
       }
@@ -100,7 +114,7 @@ void run(int argc, char** argv)
 
     case Command::PURGE: {
       int const items_removed = recent_manager->purge_items();
-      if (verbose) {
+      if (opts.verbose) {
         fmt::print("purged {} items\n", items_removed);
       }
       break;
@@ -127,6 +141,8 @@ void run(int argc, char** argv)
 
   app->run();
 }
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
